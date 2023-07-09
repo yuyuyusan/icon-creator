@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChromePicker } from 'react-color';
+import DOMPurify from 'dompurify';
 import './App.css';
 
 const App = () => {
@@ -28,7 +29,9 @@ const App = () => {
   ]);
 
   const handleTextChange = (event) => {
-    setText(event.target.value.slice(0, 2));
+    const inputValue = event.target.value.slice(0, 2);
+    const sanitizedText = DOMPurify.sanitize(inputValue, { ALLOWED_TAGS: [] });
+    setText(sanitizedText);
   };
 
   const handleTextColorChange = (newColor) => {
@@ -42,6 +45,7 @@ const App = () => {
   const handleFileFormatChange = (event) => {
     setFileFormat(event.target.value);
   };
+
   const handleFontStyleChange = (event) => {
     setSelectedFont(event.target.value);
   };
@@ -49,7 +53,6 @@ const App = () => {
   const handleImageSizeChange = (event) => {
     const newSize = parseInt(event.target.value);
     setImageSize(newSize);
-    const newTextSize = newSize / 2;
   };
 
   const handlePreview = () => {
@@ -57,8 +60,8 @@ const App = () => {
     canvas.width = imageSize;
     canvas.height = imageSize;
     const ctx = canvas.getContext('2d');
-    const textSize = imageSize / 2; // 画像サイズに比例してテキストサイズを計算
-    ctx.font = `bold ${textSize}px ${selectedFont}`; // テキストのサイズを追加
+    const textSize = imageSize / 2;
+    ctx.font = `bold ${textSize}px ${selectedFont}`;
 
     if (isAutoBgColor) {
       const hslColor = hexToHSL(textColor);
@@ -72,7 +75,7 @@ const App = () => {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.fillStyle = textColor;
-    ctx.font = `bold ${textSize}px ${selectedFont}`; // テキストのサイズを追加
+    ctx.font = `bold ${textSize}px ${selectedFont}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, canvas.width / 2, canvas.height / 2);
@@ -82,21 +85,47 @@ const App = () => {
 
   const handleSaveImage = () => {
     if (fileFormat === 'svg') {
-      // SVGの場合の処理
+      const sanitizedText = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
+      const fileName = `icon-${encodeURIComponent(sanitizedText)}.svg`;
       const svgContent = generateSVGContent();
-      const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+      const sanitizedSvgContent = DOMPurify.sanitize(svgContent);
+      const blob = new Blob([sanitizedSvgContent], { type: 'image/svg+xml' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `icon-${text}.svg`; // ファイル名を設定します
-      link.click();
+      link.download = `icon-${text}.svg`;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+
+      link.dispatchEvent(
+        new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        })
+      );
+
       URL.revokeObjectURL(url);
+      document.body.removeChild(link);
     } else {
-      // PNG、JPG、WebPの場合の処理
+      const sanitizedText = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
+      const fileName = `icon-${encodeURIComponent(
+        sanitizedText
+      )}.${fileFormat}`;
       const link = document.createElement('a');
       link.href = preview;
       link.download = `icon-${text}.${fileFormat}`;
-      link.click();
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+
+      link.dispatchEvent(
+        new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        })
+      );
     }
   };
 
@@ -104,7 +133,6 @@ const App = () => {
     let imageContent;
 
     if (fileFormat === 'webp') {
-      // WebPの場合の処理
       const canvas = document.createElement('canvas');
       canvas.width = imageSize;
       canvas.height = imageSize;
@@ -126,20 +154,19 @@ const App = () => {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-
       imageContent = canvas.toDataURL('image/webp');
     } else {
-      // SVGの場合の処理
+      const sanitizedText = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
       imageContent = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${imageSize}" height="${imageSize}">
-        <rect width="100%" height="100%" fill="${
-          isAutoBgColor ? textColor : backgroundColor
-        }" />
-        <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="${textColor}" font-size="100px" font-weight="bold">
-          ${text}
-        </text>
-      </svg>
-    `;
+        <svg xmlns="http://www.w3.org/2000/svg" width="${imageSize}" height="${imageSize}">
+          <rect width="100%" height="100%" fill="${
+            isAutoBgColor ? textColor : backgroundColor
+          }" />
+          <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="${textColor}" font-size="100px" font-weight="bold">
+            ${sanitizedText}
+          </text>
+        </svg>
+      `;
     }
 
     return imageContent;
@@ -174,7 +201,6 @@ const App = () => {
     const r = rgbColor.r / 255;
     const g = rgbColor.g / 255;
     const b = rgbColor.b / 255;
-
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
     let h, s, l;
@@ -182,7 +208,7 @@ const App = () => {
     l = (max + min) / 2;
 
     if (max === min) {
-      h = s = 0; // achromatic
+      h = s = 0;
     } else {
       const d = max - min;
       s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -215,6 +241,17 @@ const App = () => {
   };
 
   useEffect(() => {
+    const handleClickOutsideColorPicker = (event) => {
+      if (
+        (textColorPickerRef.current &&
+          !textColorPickerRef.current.contains(event.target)) ||
+        (bgColorPickerRef.current &&
+          !bgColorPickerRef.current.contains(event.target))
+      ) {
+        setShowTextColorPicker(false);
+        setShowBgColorPicker(false);
+      }
+    };
     document.addEventListener('mousedown', handleClickOutsideColorPicker);
     return () => {
       document.removeEventListener('mousedown', handleClickOutsideColorPicker);
@@ -225,7 +262,7 @@ const App = () => {
     <div className="container">
       <h1 className="main-title">Font Icon Creator</h1>
       <div className="form-group">
-        <label>Text：</label>
+        <label>Text:</label>
         <input
           type="text"
           maxLength="2"
@@ -234,7 +271,7 @@ const App = () => {
         />
       </div>
       <div className="form-group">
-        <label>Text-Color：</label>
+        <label>Text Color:</label>
         <div className="color-picker-wrapper">
           <div
             className="color-preview"
@@ -252,13 +289,13 @@ const App = () => {
         </div>
       </div>
       <div className="form-group">
-        <label>Background-Color：</label>
+        <label>Background Color:</label>
         <div className="bg-color-toggle">
           <button
             className={`toggle-button ${!isAutoBgColor ? 'active' : ''}`}
             onClick={handleBgColorToggle}
           >
-            {isAutoBgColor ? 'Manual' : 'Auto'}
+            {isAutoBgColor ? 'Auto' : 'Manual'}
           </button>
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -270,7 +307,6 @@ const App = () => {
         </div>
         {isAutoBgColor ? (
           <div className="auto-bg-color-info">
-            {/* テキストの色に基づいて自動的に設定されます */}
             Automatically set based on text color.
           </div>
         ) : (
@@ -292,7 +328,7 @@ const App = () => {
         )}
       </div>
       <div className="form-group">
-        <label>Font-Style：</label>
+        <label>Font Style:</label>
         <select value={selectedFont} onChange={handleFontStyleChange}>
           <optgroup label="明朝体">
             <option value="serif">Default</option>
@@ -350,9 +386,8 @@ const App = () => {
           </optgroup>
         </select>
       </div>
-
       <div className="form-group">
-        <label>File-Format：</label>
+        <label>File Format:</label>
         <select value={fileFormat} onChange={handleFileFormatChange}>
           <option value="png">PNG</option>
           <option value="jpg">JPG</option>
@@ -360,9 +395,8 @@ const App = () => {
           <option value="webp">Webp</option>
         </select>
       </div>
-
       <div className="form-group">
-        <label>Image-Size：</label>
+        <label>Image Size:</label>
         <select value={imageSize} onChange={handleImageSizeChange}>
           <option value="64">64x64</option>
           <option value="128">128x128</option>
@@ -371,14 +405,9 @@ const App = () => {
           <option value="512">512x512</option>
         </select>
       </div>
-
       {preview && (
         <div className="preview-container">
-          <img
-            className="preview-image"
-            src={preview}
-            alt="プレビューアイコン"
-          />
+          <img className="preview-image" src={preview} alt="Preview Icon" />
           <button className="save-button" onClick={handleSaveImage}>
             Download
           </button>
