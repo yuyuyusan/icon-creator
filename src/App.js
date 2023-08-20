@@ -12,7 +12,7 @@ const App = () => {
   const [imageSize, setImageSize] = useState(128);
   const [showTextColorPicker, setShowTextColorPicker] = useState(false);
   const [showBgColorPicker, setShowBgColorPicker] = useState(false);
-  const [isAutoBgColor, setIsAutoBgColor] = useState(true);
+  const [isAutoBgColor, setIsAutoBgColor] = useState(false);
   const [selectedFont, setSelectedFont] = useState('Arial');
   const textColorPickerRef = useRef(null);
   const bgColorPickerRef = useRef(null);
@@ -83,53 +83,7 @@ const App = () => {
     setPreview(canvas.toDataURL(`image/${fileFormat}`));
   };
 
-  const handleSaveImage = () => {
-    if (fileFormat === 'svg') {
-      const sanitizedText = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
-      const fileName = `icon-${encodeURIComponent(sanitizedText)}.svg`;
-      const svgContent = generateSVGContent();
-      const sanitizedSvgContent = DOMPurify.sanitize(svgContent);
-      const blob = new Blob([sanitizedSvgContent], { type: 'image/svg+xml' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `icon-${text}.svg`;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      document.body.appendChild(link);
-
-      link.dispatchEvent(
-        new MouseEvent('click', {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-        })
-      );
-
-      URL.revokeObjectURL(url);
-      document.body.removeChild(link);
-    } else {
-      const sanitizedText = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
-      const fileName = `icon-${encodeURIComponent(
-        sanitizedText
-      )}.${fileFormat}`;
-      const link = document.createElement('a');
-      link.href = preview;
-      link.download = `icon-${text}.${fileFormat}`;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-
-      link.dispatchEvent(
-        new MouseEvent('click', {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-        })
-      );
-    }
-  };
-
-  const generateSVGContent = () => {
+  const generateSVGContent = (textColorValue, bgColorValue) => {
     let imageContent;
 
     if (fileFormat === 'webp') {
@@ -159,10 +113,10 @@ const App = () => {
       const sanitizedText = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
       imageContent = `
         <svg xmlns="http://www.w3.org/2000/svg" width="${imageSize}" height="${imageSize}">
-          <rect width="100%" height="100%" fill="${
-            isAutoBgColor ? textColor : backgroundColor
-          }" />
-          <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="${textColor}" font-size="100px" font-weight="bold">
+          <rect width="100%" height="100%" fill="${bgColorValue}" />
+          <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="${textColorValue}" font-size="${
+        imageSize / 2
+      }px" font-weight="bold">
             ${sanitizedText}
           </text>
         </svg>
@@ -171,25 +125,65 @@ const App = () => {
 
     return imageContent;
   };
+  const handleSaveImage = () => {
+    if (fileFormat === 'svg') {
+      const sanitizedText = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
+      const fileName = `icon-${encodeURIComponent(sanitizedText)}.svg`;
+      const textColorValue = isAutoBgColor
+        ? getContrastingTextColor(textColor)
+        : textColor;
+      const bgColorValue = isAutoBgColor ? textColor : backgroundColor;
+      const svgContent = generateSVGContent(textColorValue, bgColorValue);
 
+      const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+
+      link.dispatchEvent(
+        new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        })
+      );
+
+      URL.revokeObjectURL(url);
+    } else {
+      const sanitizedText = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
+      const fileName = `icon-${encodeURIComponent(
+        sanitizedText
+      )}.${fileFormat}`;
+      const link = document.createElement('a');
+      link.href = preview;
+      link.download = `icon-${text}.${fileFormat}`;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+
+      link.dispatchEvent(
+        new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        })
+      );
+    }
+  };
+  const getContrastingTextColor = (bgColor) => {
+    const rgbColor = hexToRGB(bgColor);
+    const brightness =
+      (rgbColor.r * 299 + rgbColor.g * 587 + rgbColor.b * 114) / 1000;
+    return brightness >= 128 ? '#000000' : '#ffffff';
+  };
   const handleTextColorPickerToggle = () => {
     setShowTextColorPicker(!showTextColorPicker);
   };
 
   const handleBgColorPickerToggle = () => {
     setShowBgColorPicker(!showBgColorPicker);
-  };
-
-  const handleClickOutsideColorPicker = (event) => {
-    if (
-      (textColorPickerRef.current &&
-        !textColorPickerRef.current.contains(event.target)) ||
-      (bgColorPickerRef.current &&
-        !bgColorPickerRef.current.contains(event.target))
-    ) {
-      setShowTextColorPicker(false);
-      setShowBgColorPicker(false);
-    }
   };
 
   const handleBgColorToggle = () => {
@@ -290,12 +284,12 @@ const App = () => {
       </div>
       <div className="form-group">
         <label>Background Color:</label>
-        <div className="bg-color-toggle">
+        {/* <div className="bg-color-toggle">
           <button
             className={`toggle-button ${!isAutoBgColor ? 'active' : ''}`}
             onClick={handleBgColorToggle}
           >
-            {isAutoBgColor ? 'Auto' : 'Manual'}
+            {isAutoBgColor ? 'Manual' : 'Auto'}
           </button>
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -304,7 +298,7 @@ const App = () => {
           >
             <path d="M0 224c0 17.7 14.3 32 32 32s32-14.3 32-32c0-53 43-96 96-96H320v32c0 12.9 7.8 24.6 19.8 29.6s25.7 2.2 34.9-6.9l64-64c12.5-12.5 12.5-32.8 0-45.3l-64-64c-9.2-9.2-22.9-11.9-34.9-6.9S320 19.1 320 32V64H160C71.6 64 0 135.6 0 224zm512 64c0-17.7-14.3-32-32-32s-32 14.3-32 32c0 53-43 96-96 96H192V352c0-12.9-7.8-24.6-19.8-29.6s-25.7-2.2-34.9 6.9l-64 64c-12.5 12.5-12.5 32.8 0 45.3l64 64c9.2 9.2 22.9 11.9 34.9 6.9s19.8-16.6 19.8-29.6V448H352c88.4 0 160-71.6 160-160z" />
           </svg>
-        </div>
+        </div> */}
         {isAutoBgColor ? (
           <div className="auto-bg-color-info">
             Automatically set based on text color.
