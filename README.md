@@ -2,13 +2,12 @@
 
 ## URL
 
-https://workup-sub.com/test_shitsukawa/icon-creator/
+https://favicon-text-creator.web.app/
 
 ## Detail
 
 フォントのアイコン作成ツールです。
 テキスト、背景色のカラーピッカーはreact-colorを使用しています。
-背景色はテキストのカラーによってコントラストを変更していますが、手動に切り替え可能です。
 font-familyは選択ができ、Google fontを使用しています。
 フォーマットはjpg,png,svg,webpでダウンロードができます。
 svgのフォントはpathではなく、テキストになっています。
